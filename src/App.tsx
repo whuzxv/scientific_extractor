@@ -128,38 +128,91 @@ export default function App() {
     }
 
     setLoading(true);
+    
+    // Chunk size: 16k chars
+    const CHUNK_SIZE = 16000;
+    const textChunks: string[] = [];
+    for (let i = 0; i < inputText.length; i += CHUNK_SIZE) {
+      textChunks.push(inputText.substring(i, i + CHUNK_SIZE));
+    }
+
+    const aggregatedHardware: ExtractionItem[] = [];
+    const aggregatedSoftware: ExtractionItem[] = [];
+    let successCount = 0;
+
     try {
-      const response = await fetch('http://127.0.0.1:9001/extract', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: inputText }),
+      // Process chunks sequentially to be friendly to local server
+      for (let i = 0; i < textChunks.length; i++) {
+        try {
+          const response = await fetch('http://127.0.0.1:9001/extract', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: textChunks[i] }),
+          });
+
+          if (!response.ok) continue;
+          
+          const data = await response.json();
+          if (data && data.success && data.result) {
+            successCount++;
+            
+            // Add hardware items
+            if (Array.isArray(data.result.hardware)) {
+              aggregatedHardware.push(...data.result.hardware);
+            }
+            
+            // Add software items
+            if (Array.isArray(data.result.software)) {
+              aggregatedSoftware.push(...data.result.software);
+            }
+          }
+        } catch (chunkError) {
+          console.error(`Chunk ${i} processing failed:`, chunkError);
+          // Continue to next chunk
+        }
+      }
+
+      if (successCount === 0) {
+        throw new Error('所有批次请求均失败，请检查后端服务连接。');
+      }
+
+      // Deduplication helper: using raw_mention + tech_type + manufacturer as unique key
+      const getUniqueItems = (items: ExtractionItem[]) => {
+        const seen = new Set<string>();
+        return items.filter(item => {
+          const key = `${item.raw_mention || ''}|${item.tech_type || ''}|${item.manufacturer || ''}`.toLowerCase().trim();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      };
+
+      const finalHardware = getUniqueItems(aggregatedHardware);
+      let finalSoftware = getUniqueItems(aggregatedSoftware);
+
+      // Apply corrections (R language origin)
+      finalSoftware = finalSoftware.map(item => {
+        if ((item.raw_mention === 'R' || item.normalized_name === 'R') && item.origin === 'AUT') {
+          return { ...item, origin: 'NZL' };
+        }
+        return item;
       });
 
-      const data = await response.json();
-      if (data.success) {
-        // Post-processing corrections
-        const processedResult = { ...data.result };
-        if (processedResult.software) {
-          processedResult.software = processedResult.software.map((item: ExtractionItem) => {
-            // Fix R language origin error
-            if (item.raw_mention === 'R' || item.normalized_name === 'R') {
-              if (item.origin === 'AUT') {
-                return { ...item, origin: 'NZL' };
-              }
-            }
-            return item;
-          });
-        }
-        setResults(processedResult);
-        message.success('提取分析完成！');
+      setResults({
+        hardware: finalHardware,
+        software: finalSoftware
+      });
+
+      if (successCount < textChunks.length) {
+        message.warning(`分析部分完成：${successCount}/${textChunks.length} 个批次成功。`);
       } else {
-        throw new Error(data.error || '分析失败');
+        message.success('全部提取分析完成！');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      message.error('提取失败，请检查后端服务连接。');
+      message.error(error.message || '分析失败');
     } finally {
       setLoading(false);
     }
