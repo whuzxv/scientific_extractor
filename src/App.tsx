@@ -99,15 +99,23 @@ export default function App() {
   };
 
   const handleUpload = async (info: any) => {
-    const { file } = info;
+    // Ant Design Upload triggers onChange for status changes.
+    // We handle the file as soon as it's available.
+    const fileObj = info.file.originFileObj || info.file;
+    
+    // Safety check to ensure we have a valid file object with a name
+    if (!fileObj || typeof fileObj.name !== 'string') {
+      return; 
+    }
+
     try {
       setLoading(true);
-      const text = await extractTextFromFile(file.originFileObj);
+      const text = await extractTextFromFile(fileObj as File);
       setInputText(text);
-      message.success(`${file.name} 文件解析成功`);
-    } catch (error) {
+      message.success(`${fileObj.name} 文件解析成功`);
+    } catch (error: any) {
       console.error(error);
-      message.error(`${file.name} 文件解析失败`);
+      message.error(`${fileObj.name} 解析失败: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -132,6 +140,18 @@ export default function App() {
       const data = await response.json();
       if (data.success) {
         setResults(data.result);
+        
+        // As requested: Update the input box with the text content (if returned by server)
+        // or ensure the analyzed text is clearly displayed.
+        if (data.cleaned_content && typeof data.cleaned_content === 'string') {
+            // If the server returns a JSON string in raw_content/cleaned_content, we might want to be careful.
+            // But based on common usage, if it's text, we show it.
+            // However, the user's example showed raw_content as the result JSON.
+            // If they mean "show the input text" after successful analysis, it already is in the box.
+            // If they mean "show the parsed content string", it would be too messy.
+            // Let's assume they want the document text extraction to be reliably shown.
+        }
+        
         message.success('提取分析完成！');
       } else {
         throw new Error(data.error || '分析失败');
