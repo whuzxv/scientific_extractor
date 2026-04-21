@@ -59,6 +59,7 @@ interface ExtractionItem {
 interface AnalysisResult {
   hardware: ExtractionItem[];
   software: ExtractionItem[];
+  datasets: ExtractionItem[];
 }
 
 export default function App() {
@@ -189,20 +190,39 @@ export default function App() {
         });
       };
 
-      const finalHardware = getUniqueItems(aggregatedHardware);
-      let finalSoftware = getUniqueItems(aggregatedSoftware);
+      const rawHardware = getUniqueItems(aggregatedHardware);
+      const rawSoftware = getUniqueItems(aggregatedSoftware);
 
-      // Apply corrections (R language origin)
-      finalSoftware = finalSoftware.map(item => {
-        if ((item.raw_mention === 'R' || item.normalized_name === 'R') && item.origin === 'AUT') {
-          return { ...item, origin: 'NZL' };
+      const finalHardware: ExtractionItem[] = [];
+      const finalSoftware: ExtractionItem[] = [];
+      const finalDatasets: ExtractionItem[] = [];
+
+      rawHardware.forEach(item => {
+        const type = (item.tech_type || '').toLowerCase();
+        if (type.includes('dataset')) {
+          finalDatasets.push(item);
+        } else {
+          finalHardware.push(item);
         }
-        return item;
+      });
+
+      rawSoftware.forEach(item => {
+        const type = (item.tech_type || '').toLowerCase();
+        if (type.includes('dataset')) {
+          finalDatasets.push(item);
+        } else {
+          let processed = item;
+          if ((item.raw_mention === 'R' || item.normalized_name === 'R') && item.origin === 'AUT') {
+            processed = { ...item, origin: 'NZL' };
+          }
+          finalSoftware.push(processed);
+        }
       });
 
       setResults({
         hardware: finalHardware,
-        software: finalSoftware
+        software: finalSoftware,
+        datasets: getUniqueItems(finalDatasets)
       });
 
       if (successCount < textChunks.length) {
@@ -258,6 +278,18 @@ export default function App() {
           model: "",
           origin: "USA",
           evidence: "Images were processed using ImageJ."
+        }
+      ],
+      datasets: [
+        {
+          raw_mention: "TCGA-LUAD",
+          normalized_name: "The Cancer Genome Atlas Lung Adenocarcinoma",
+          tech_type: "dataset",
+          manufacturer: "NCI",
+          manufacturer_source: "inferred",
+          model: "",
+          origin: "USA",
+          evidence: "Publicly available sequencing data were obtained from the TCGA-LUAD dataset."
         }
       ]
     };
@@ -418,7 +450,7 @@ export default function App() {
                   <span>提取结果</span>
                   {results && (
                     <Tag color="green" style={{ marginLeft: 8 }}>
-                      共发现 {results.hardware.length + results.software.length} 项
+                      共发现 {results.hardware.length + results.software.length + results.datasets.length} 项
                     </Tag>
                   )}
                 </Space>
@@ -459,6 +491,23 @@ export default function App() {
                   >
                     <Table 
                       dataSource={results.software.map((item, i) => ({ ...item, key: i }))} 
+                      columns={columns} 
+                      pagination={false}
+                      size="small"
+                      scroll={{ y: 'calc(100vh - 350px)' }}
+                    />
+                  </Tabs.TabPane>
+                  <Tabs.TabPane 
+                    tab={
+                      <span>
+                        <DatabaseOutlined />
+                        数据集 ({results.datasets.length})
+                      </span>
+                    } 
+                    key="3"
+                  >
+                    <Table 
+                      dataSource={results.datasets.map((item, i) => ({ ...item, key: i }))} 
                       columns={columns} 
                       pagination={false}
                       size="small"
