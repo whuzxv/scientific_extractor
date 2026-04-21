@@ -37,9 +37,10 @@ import {
 } from '@ant-design/icons';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const { Header, Content, Footer } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -65,6 +66,7 @@ interface AnalysisResult {
 export default function App() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
   const [results, setResults] = useState<AnalysisResult | null>(null);
 
   const extractTextFromFile = async (file: File): Promise<string> => {
@@ -110,7 +112,7 @@ export default function App() {
     }
 
     try {
-      setLoading(true);
+      setFileLoading(true);
       const text = await extractTextFromFile(fileObj as File);
       setInputText(text);
       message.success(`${fileObj.name} 文件解析成功`);
@@ -118,7 +120,7 @@ export default function App() {
       console.error(error);
       message.error(`${fileObj.name} 解析失败: ${error.message || error}`);
     } finally {
-      setLoading(false);
+      setFileLoading(false);
     }
   };
 
@@ -395,8 +397,9 @@ export default function App() {
                     showUploadList={false}
                     onChange={handleUpload}
                     beforeUpload={() => false}
+                    disabled={fileLoading}
                   >
-                    <Button type="dashed" icon={<UploadOutlined />}>上传文档</Button>
+                    <Button type="dashed" icon={<UploadOutlined />} loading={fileLoading}>上传文档</Button>
                   </Upload>
                 </Space>
               }
