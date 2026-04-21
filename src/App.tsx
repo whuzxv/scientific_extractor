@@ -367,7 +367,7 @@ export default function App() {
         <div className="flex items-center">
           <ExperimentOutlined style={{ fontSize: '28px', color: '#1890ff', marginRight: '16px' }} />
           <div>
-            <Title level={4} style={{ margin: 0 }}>Precision Science Extractor</Title>
+            <Title level={4} style={{ margin: 0 }}>设备信息自动抽取工具</Title>
             <Text type="secondary" style={{ fontSize: '12px' }}>高精度科研设备与软件元数据提取工具</Text>
           </div>
         </div>
