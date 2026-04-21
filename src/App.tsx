@@ -145,7 +145,7 @@ export default function App() {
       // Process chunks sequentially to be friendly to local server
       for (let i = 0; i < textChunks.length; i++) {
         try {
-          const response = await fetch('http://127.0.0.1:9001/extract', {
+          const response = await fetch('/api/extract', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
